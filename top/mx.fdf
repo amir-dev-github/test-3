@@ -84,3 +84,9 @@ BandLinesScale  ReciprocalLatticeVectors
 100   0.50000  0.500000  0.0   \M
 100   0.00000  0.000000  0.0   \Gamma 
 %endblock BandLines
+
+
+%block PS.lmax
+  In  1
+  Se  2
+%endblock PS.lmax
