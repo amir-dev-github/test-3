@@ -1,0 +1,92 @@
+name: Test SIESTA FDF Files
+
+# Trigger the workflow on pushes to main/master branches or manually via GitHub UI
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  siesta:
+    runs-on: ubuntu-latest
+
+    # Use a pre-configured conda container for easy SIESTA installation
+    container:
+      image: continuumio/miniconda3:latest
+
+    strategy:
+      fail-fast: false # Prevent cancelling other running jobs if one fails
+      matrix:
+        case:
+          - bot
+          - top
+
+    steps:
+      # Checkout the repository content
+      - uses: actions/checkout@v4
+
+      # Install SIESTA using conda-forge
+      - name: Install SIESTA
+        shell: bash
+        run: |
+          conda install -y -c conda-forge siesta
+
+      # Verify that SIESTA is installed correctly and print its version
+      - name: Check installation
+        shell: bash
+        run: |
+          which siesta
+          siesta --version
+
+      # Run the SIESTA calculation for the specific matrix case (bot / top)
+      - name: Run calculation
+        shell: bash
+        run: |
+          CASE="${{ matrix.case }}"
+          
+          echo "========================================"
+          echo "Running $CASE"
+          echo "========================================"
+
+          # Navigate INTO the case directory (bot or top)
+          cd "$CASE" || exit 1
+
+          # Execute SIESTA with mx.fdf
+          (
+            set -x
+            siesta < mx.fdf
+          ) \
+          > >(tee mx.out) \
+          2> >(tee mx.err >&2)
+
+          # Capture the exit code of the SIESTA run
+          EXIT_CODE=$?
+
+          echo
+          echo "========== EXIT CODE =========="
+          echo "$EXIT_CODE"
+
+          # Exit with the exact status code
+          exit $EXIT_CODE
+
+      # Print the last 50 lines of logs to the GitHub Actions console for quick debugging
+      - name: Show last log lines
+        if: always() # Run this step even if the calculation failed
+        shell: bash
+        run: |
+          echo "=========== STDOUT ==========="
+          tail -50 ${{ matrix.case }}/mx.out || true
+
+          echo
+          echo "=========== STDERR ==========="
+          tail -50 ${{ matrix.case }}/mx.err || true
+
+      # Upload the entire case directory (bot or top) as an artifact
+      - name: Upload outputs
+        if: always() # Ensure files are uploaded even if the run crashes
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.case }}
+          path: ${{ matrix.case }}
